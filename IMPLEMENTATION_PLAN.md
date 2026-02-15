@@ -1,15 +1,146 @@
-# Implementation Plan
+# Implementation Plan — Gyro: Excavator
 
-## Current Tasks (Priority Order)
+## Architecture
 
-- [ ] Task 1 - Description
-- [ ] Task 2 - Description
-- [ ] Task 3 - Description
+```
+┌─────────────────────────────────────────┐
+│  App Layer (SwiftUI menus, game states) │
+├─────────────────────────────────────────┤
+│  Game Logic (missions, scoring, progression) │
+├──────────┬──────────┬───────────────────┤
+│  Input   │  Physics │  Rendering        │
+│  System  │  Engine  │  (Metal)          │
+│          │          │                   │
+│ Sticks   │ Arm IK   │ Terrain mesh      │
+│ Gyro     │ Soil def │ Vehicle model     │
+│ BT Ctrl  │ Tracks   │ Shadows           │
+│ Haptics  │ Collision│ Particles         │
+├──────────┴──────────┴───────────────────┤
+│  Audio Engine (AVAudioEngine)           │
+└─────────────────────────────────────────┘
+```
 
-## Completed
+**Tick rates:**
+- Input polling: 120Hz
+- Arm rigid body / kinematics: 120Hz
+- Soil deformation: 30-60Hz (Metal compute)
+- Rendering: 60Hz (target), adaptive down to 30Hz
+- Audio: Event-driven
+- Haptics: Event-driven (CHHapticEngine)
 
-*Move completed tasks here with date*
+## Phase 1: Renderer + Input (Weeks 1-3)
 
-## Notes
+Get something on screen with working controls.
 
-- Important decisions or context
+- [ ] Metal renderer boilerplate (CAMetalLayer, command queue, triple-buffer)
+- [ ] Camera system (third-person, follow excavator)
+- [ ] Flat terrain with basic texture
+- [ ] Simple excavator mesh (box placeholder or low-poly model)
+- [ ] Virtual thumbstick system (floating origin, dead zones, expo curves)
+- [ ] Gyro input (CMMotionManager, calibration, axis mapping)
+- [ ] Bluetooth controller detection + mapping
+
+**Milestone:** Render a textured plane with a box you can move using sticks + gyro.
+
+## Phase 2: Excavator Arm (Weeks 3-5)
+
+The core mechanic — articulated arm that feels heavy.
+
+- [ ] Boom + stick + bucket as serial linkage (forward kinematics)
+- [ ] Joint angle limits (min/max per joint, realistic ranges)
+- [ ] Hydraulic speed simulation (joints move at limited rate, slower under load)
+- [ ] Arm physics at 120Hz (semi-implicit Euler or RK4)
+- [ ] ISO-adapted control mapping (boom on left Y, stick on right X, bucket on right Y, swing on gyro)
+- [ ] Counterweight / centre-of-gravity tracking
+- [ ] Tip-over detection and physics
+
+**Milestone:** Move boom/stick/bucket with sticks, see arm respond with weight and joint limits.
+
+## Phase 3: Soil + Digging (Weeks 5-8)
+
+Make digging satisfying.
+
+- [ ] Heightmap terrain system (GPU-side vertex buffer)
+- [ ] Stamp-based deformation (bucket shape subtracted on contact)
+- [ ] Material types: topsoil, clay, gravel, rock (different resistance curves)
+- [ ] Bucket-soil force model (penetration resistance, breakout, curl force)
+- [ ] Mass accumulation in bucket (affects arm dynamics)
+- [ ] Spoil pile generation (pre-computed shapes stamped on dump)
+- [ ] Volume tracking (hole ≈ pile × swell factor)
+- [ ] Angle-of-repose post-processing (trench walls collapse if too steep)
+- [ ] Soil deformation on Metal compute shader (30-60Hz)
+- [ ] Terrain collision mesh update (GPU→CPU readback or parallel CPU heightmap)
+
+**Milestone:** Dig a trench in clay, see walls, pile spoil, feel the depth.
+
+## Phase 4: Haptics + Audio (Weeks 8-10)
+
+Feel and hear the machine.
+
+- [ ] CoreHaptics engine setup (CHHapticEngine lifecycle, stoppedHandler, resetHandler)
+- [ ] Per-material haptic patterns (topsoil, clay, gravel, rock strike)
+- [ ] Boom stress haptics, track rumble, counterweight shift
+- [ ] Hydraulic audio (strain under load, idle, boom movement)
+- [ ] Bucket impact sounds per material
+- [ ] Engine audio (RPM-mapped, load-reactive)
+- [ ] Spatial audio positioning (AVAudioEngine 3D)
+- [ ] Haptic intensity slider in settings
+- [ ] Battery/thermal haptic budget management
+
+**Milestone:** Close your eyes and know what material you're digging by feel + sound alone.
+
+## Phase 5: Missions + Progression (Weeks 10-13)
+
+Turn the toy into a game.
+
+- [ ] Mission framework (briefing → gameplay → scoring → results)
+- [ ] Trench jobs (target depth/width/length, scored on accuracy + speed)
+- [ ] Loading jobs (dig face → bucket → truck, cycle time scoring)
+- [ ] Foundation work (precision dig to plans)
+- [ ] Demolition (breakable structures, sequenced teardown)
+- [ ] Tight-access scenarios (constrained swing, obstacle avoidance)
+- [ ] Progression system (unlock harder sites, new soil types, tighter tolerances)
+- [ ] Quick Dig mode (random site, 3-5 min sessions)
+- [ ] High score tracking
+
+**Milestone:** Playable game with 15+ missions across 4 difficulty tiers.
+
+## Phase 6: Polish + Ship (Weeks 13-16)
+
+- [ ] PBR materials and proper excavator model
+- [ ] Shadow cascades, dust particles, environment props
+- [ ] Onboarding flow (guided first dig, < 90 seconds)
+- [ ] Settings (gyro sensitivity, stick dead zones, haptic intensity, controller config)
+- [ ] Accessibility audit (VoiceOver menus, touch-only controls, Dynamic Type)
+- [ ] Thermal profiling on iPhone 13 (30-minute sustained session)
+- [ ] Memory profiling (target 300MB peak)
+- [ ] App Store metadata (screenshots, preview video, description, age rating 4+)
+- [ ] Privacy Nutrition Label ("Data Not Collected")
+- [ ] TestFlight beta
+
+**Milestone:** App Store submission.
+
+## Timeline Summary
+
+| Phase | Weeks | What |
+|-------|-------|------|
+| 1. Renderer + Input | 1-3 | Metal boilerplate, sticks, gyro |
+| 2. Excavator Arm | 3-5 | Articulated arm, joint physics |
+| 3. Soil + Digging | 5-8 | Heightmap deformation, materials |
+| 4. Haptics + Audio | 8-10 | CoreHaptics patterns, spatial audio |
+| 5. Missions | 10-13 | Game loop, progression, scoring |
+| 6. Polish + Ship | 13-16 | Art, onboarding, App Store |
+
+**Total: ~16 weeks (4 months) to App Store submission.**
+
+## Codex Notes
+
+- Each phase = 1-2 CODEX_PROMPT.md files, max 300 lines each
+- Metal renderer needs ~60-80% hand-written code (Codex can't reliably generate Metal pipelines)
+- Soil deformation compute shader = manual work (Codex task boundary)
+- Codex sweet spot: mission logic, UI, scoring, settings, input handling
+- Test each Codex output on device before proceeding (simulator ≠ real Metal performance)
+
+---
+
+*Updated: 2026-02-15*
