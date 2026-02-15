@@ -59,19 +59,20 @@ Real excavators use ISO controls. We adapt for phone:
 
 | Function | Real ISO | Gyro Adaptation |
 |----------|----------|-----------------|
-| Swing (cab rotation) | Left stick L/R | **Gyro tilt L/R** (phone rotation = cab rotation — intuitive "look where you face") |
+| Swing (cab rotation) | Left stick L/R | Left stick X-axis |
 | Boom up/down | Left stick U/D | Left stick Y-axis |
 | Stick in/out | Right stick L/R | Right stick X-axis |
-| Bucket curl/dump | Right stick U/D | Right stick Y-axis |
-| Track L/R | Foot pedals | **Gyro forward/back tilt** OR dedicated track mode toggle |
+| Bucket curl/dump | Right stick U/D | **Gyro tilt forward/back** (tilt phone = curl bucket — the signature mechanic) |
+| Track L/R | Foot pedals | Dedicated track mode toggle OR context-sensitive |
 
-**Key decisions from expert review:**
-- Gyro for SWING, not bucket curl — swing is coarse/occasional, bucket is fine/constant
-- Bucket stays on right stick Y — most frequently adjusted, needs precision
-- Every gyro function has a touch-only alternative (accessibility requirement)
-- Haptic "handshake" pattern when switching control modes
+**Key decisions:**
+- **Gyro for bucket curl** — this is the hero mechanic. Tilting to scoop dirt is what makes this feel different from every other mobile game
+- Swing stays on left stick X — it's used constantly during dig cycles
+- Every gyro function has a touch-only alternative (accessibility requirement — App Store will reject without this)
+- Haptic feedback on bucket contact reinforces the gyro→dig connection
+- Gyro sensitivity adjustable + recalibrate on double-tap
 
-**Alternative:** Gyro off by default, all functions on sticks. Gyro as opt-in enhancement.
+**Note from expert review:** Reviewers flagged that bucket curl is high-frequency input and gyro may cause fatigue/interference. Counter: bucket curl during the actual dig stroke is a brief, deliberate motion (not constant micro-adjustment). The tilt-to-scoop gesture is the entire USP. Test extensively on device and provide stick fallback.
 
 ## Haptic Design
 
