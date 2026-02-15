@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+.next/
+
+# Cache
+.vite/
+.cache/
+*.tsbuildinfo
+
+# Logs
+*.log
+ralph.log
+ralph-overnight.log
+
+# IDE/Editor
+.DS_Store
+*.swp
+.idea/
+.vscode/settings.json
+
+# Test
+coverage/
+
+# Environment
+.env
+.env.local
