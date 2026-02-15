@@ -30,14 +30,18 @@ The most satisfying excavator experience on mobile. Your phone IS the machine �
 - [ ] Full touch-only alternative for every gyro function (accessibility)
 - [ ] VoiceOver-accessible menus and purchase flows
 
+### Should Have (v1.0 if time permits)
+- [ ] Free Dig / sandbox mode (no objectives, just dig — parents and kids love this)
+- [ ] Leaderboards (cycle time, precision scoring — the #1 missing retention hook)
+- [ ] Float function (boom drops under gravity for grading — operators say this is fundamental)
+- [ ] Simplified "kid mode" controls (tilt-only, bigger targets, more forgiving)
+
 ### Nice to Have (v1.x)
 - [ ] Track deformation on soft ground
-- [ ] Float function (boom drops under gravity for grading)
 - [ ] Auxiliary hydraulics (thumb clamp, tilt rotator, breaker)
 - [ ] Travel-lock / arm-tuck mechanic for repositioning
 - [ ] Night operations with work lights
 - [ ] Replay/recording system
-- [ ] Leaderboards (cycle time, precision scoring)
 
 ### v2.0+ (Future Vehicles)
 - [ ] FPV Drone (recon/racing)
@@ -48,31 +52,50 @@ The most satisfying excavator experience on mobile. Your phone IS the machine �
 ## Non-Goals (v1.0)
 
 - **NOT a flight sim** — No aircraft at launch
-- **NOT a sandbox/creative game** — Structured missions with scoring
+- **NOT sandbox-only** — Structured missions with scoring + Free Dig sandbox mode
 - **NOT multiplayer** — Single-player first, network architecture not required at launch
 - **NOT 240Hz everything** — Per-system tick rates (see Technical Approach)
 - **NOT <150MB** — Budget 300MB realistically
 
-## Controls — Adapted ISO Pattern
+## Controls — ISO Pattern
 
-Real excavators use ISO controls. We adapt for phone:
+Pure ISO controls with gyro enhancement and a track toggle.
 
-| Function | Real ISO | Gyro Adaptation |
-|----------|----------|-----------------|
-| Swing (cab rotation) | Left stick L/R | Left stick X-axis |
-| Boom up/down | Left stick U/D | Left stick Y-axis |
-| Stick in/out | Right stick L/R | Right stick X-axis |
-| Bucket curl/dump | Right stick U/D | **Gyro tilt forward/back** (tilt phone = curl bucket — the signature mechanic) |
-| Track L/R | Foot pedals | Dedicated track mode toggle OR context-sensitive |
+### Digging Mode (default)
+| Function | Input |
+|----------|-------|
+| Swing (cab rotation) | Left stick X |
+| Boom up/down | Left stick Y |
+| Stick in/out | Right stick X |
+| Bucket curl/dump | Right stick Y **+ Gyro tilt** (tilt phone = curl bucket) |
 
-**Key decisions:**
-- **Gyro for bucket curl** — this is the hero mechanic. Tilting to scoop dirt is what makes this feel different from every other mobile game
-- Swing stays on left stick X — it's used constantly during dig cycles
-- Every gyro function has a touch-only alternative (accessibility requirement — App Store will reject without this)
-- Haptic feedback on bucket contact reinforces the gyro→dig connection
-- Gyro sensitivity adjustable + recalibrate on double-tap
+### Track Mode (toggle button)
+| Function | Input |
+|----------|-------|
+| Left track | Left stick Y |
+| Right track | Right stick Y |
+| Differential steering | Push sticks unevenly |
 
-**Note from expert review:** Reviewers flagged that bucket curl is high-frequency input and gyro may cause fatigue/interference. Counter: bucket curl during the actual dig stroke is a brief, deliberate motion (not constant micro-adjustment). The tilt-to-scoop gesture is the entire USP. Test extensively on device and provide stick fallback.
+A toggle button switches between dig mode and track mode. Simple, predictable, no context-sensitive magic.
+
+### Gyro (Hero Mechanic)
+- **Gyro tilt = bucket curl/dump** — mirrors right stick Y, the signature "tilt to scoop" feel
+- Uses `CMAttitudeReferenceFrame.xArbitraryZVertical` for proper landscape orientation
+- Sensor fusion via `CMDeviceMotion` (gyro + accelerometer + magnetometer) — raw gyro drifts
+- **60Hz polling** with interpolation to 120Hz physics (120Hz polling murders battery)
+- Recalibrate: double-tap or automatic baseline adjustment
+- Sensitivity adjustable in settings
+- **Always optional** — right stick Y does the same thing. Gyro enhances, never required.
+
+### BT Controller (MFi/Xbox/PS)
+Full ISO mapping: left stick = swing+boom, right stick = stick+bucket, triggers = tracks. Gyro disabled when controller connected.
+
+### Accessibility
+- Every gyro function has touch-only equivalent (right stick Y)
+- VoiceOver-accessible menus and purchase flows
+- Switch Control and button remapping support
+- Haptic intensity slider
+- Dynamic Type in all UI
 
 ## Haptic Design
 
@@ -87,9 +110,9 @@ Core Haptics (CHHapticEngine) is a PRIMARY feedback channel, not polish.
 
 Additional patterns: boom stress, track rumble, counterweight shift, engine load.
 
-**Frequency band:** 30-80Hz (heavy machinery feel). Reserve higher bands for future vehicles.
+**Frequency band:** 150-250Hz (Taptic Engine resonant frequency). Below 100Hz feels mushy and fights the hardware. Use transient events for impacts, `AVAudioEngine` with haptic sync for continuous backgrounds (CoreHaptics is for transients, not sustained rumble).
 
-**Thermal budget:** Haptic engine draws 50-200mW sustained. Include in thermal management.
+**Thermal budget:** Sustained haptic budget is 20-50mW max (not 50-200mW — that will thermal throttle in 3-5 minutes). Monitor `thermalStateChangeHandler` and scale intensity dynamically. Sharpness cap at 0.8 for max-intensity patterns (0.9+ triggers accessibility warnings).
 
 ## Soil Deformation — Technical Approach
 
@@ -101,11 +124,11 @@ Additional patterns: boom stress, track rumble, counterweight shift, engine load
 
 **NOT doing:** Voxel terrain, volumetric soil, SPH particles, real-time continuum mechanics.
 
-**Physics tick rates:**
-- Rigid body / arm kinematics: 120Hz (RK4 or semi-implicit Euler)
-- Soil deformation: 30-60Hz (GPU compute shader)
+**Physics tick rates (revised from round 2 review):**
+- All physics: **60Hz unified** (semi-implicit Euler with damping — RK4 is overkill on mobile, and mixed rates cause sync nightmares where arm clips through un-updated soil)
+- Soil deformation: 60Hz (same tick as arm physics — eliminates temporal lag)
 - Rendering: 60Hz
-- Haptics: Event-driven from physics, CHHapticEngine handles timing
+- Haptics: Event-driven transients from physics, continuous via AVAudioEngine haptic sync
 
 **Bucket-soil interaction forces:**
 - Penetration resistance (function of soil type, depth, angle)
@@ -118,7 +141,7 @@ Additional patterns: boom stress, track rumble, counterweight shift, engine load
 - **Metal** with CAMetalLayer (not MTKView — need manual frame pacing)
 - **TBDR-aware:** memoryless depth/stencil, proper load/store actions, pass merging
 - **Shadows:** 2-cascade shadow maps
-- **Terrain:** Heightmap with GPU compute deformation, readback for collision
+- **Terrain:** Heightmap with CPU-side deformation (parallel CPU heightmap for collision — GPU→CPU readback breaks TBDR pipeline and causes frame drops)
 - **Particles:** Dust on dig, soil chunks, engine exhaust (GPU-driven, budgeted)
 - **Memory budget:** 300MB target. iPhone 13+ (A15) minimum.
 - **Thermal cascade:** Degrade render resolution → shadow quality → particle count. Physics rate stays fixed.
@@ -133,10 +156,23 @@ Additional patterns: boom stress, track rumble, counterweight shift, engine load
 
 ## Age Rating
 
-- 4+ (simulation, no fire/destruction of recognizable structures at launch)
-- Demolition targets = abstract/industrial only
+- **9+** (demolition content = destruction themes, even abstract. 4+ will be rejected per App Store guidelines)
+- Demolition targets = abstract/industrial only (no recognizable buildings, schools, hospitals)
 
 ---
 
-*Informed by 23 independent expert reviews (2026-02-15). Full synthesis in project files.*
+---
+
+## Audio Design
+
+- **Cabin acoustics first** — muffled external sounds, seat creaks, control clicks, dashboard rattles. Player is IN the cab, not watching from outside.
+- **Dynamic range compression** — iPhone speakers are terrible. Compress for mobile output, not studio monitors.
+- **Essential sounds:** Hydraulic strain, relief valves, backup beeper, track clunks, engine RPM, bucket impacts per material, swing motor whine.
+- **Audio mixing hierarchy** — when multiple hydraulics activate simultaneously, prioritise player's active input. Clear feedback > realism.
+- **UI sounds** — touch feedback on controls (silent UI feels broken on mobile).
+- **2D fallback** — graceful degradation if AVAudioEngine 3D init fails.
+
+---
+
+*Informed by 48 independent expert reviews across 2 rounds (2026-02-15). Full synthesis in project files.*
 *Updated: 2026-02-15*

@@ -20,13 +20,12 @@
 └─────────────────────────────────────────┘
 ```
 
-**Tick rates:**
-- Input polling: 120Hz
-- Arm rigid body / kinematics: 120Hz
-- Soil deformation: 30-60Hz (Metal compute)
-- Rendering: 60Hz (target), adaptive down to 30Hz
+**Tick rates (unified 60Hz — mixed rates cause sync bugs):**
+- Input polling: 60Hz (gyro via CMDeviceMotion, not raw gyro)
+- All physics (arm + soil): 60Hz (semi-implicit Euler with damping)
+- Rendering: 60Hz, adaptive down to 30Hz under thermal load
 - Audio: Event-driven
-- Haptics: Event-driven (CHHapticEngine)
+- Haptics: Transients via CHHapticEngine, continuous via AVAudioEngine haptic sync
 
 ## Phase 1: Renderer + Input (Weeks 1-3)
 
@@ -37,7 +36,7 @@ Get something on screen with working controls.
 - [ ] Flat terrain with basic texture
 - [ ] Simple excavator mesh (box placeholder or low-poly model)
 - [ ] Virtual thumbstick system (floating origin, dead zones, expo curves)
-- [ ] Gyro input (CMMotionManager, calibration, axis mapping)
+- [ ] Gyro input (CMDeviceMotion with sensor fusion, xArbitraryZVertical ref frame, 60Hz polling)
 - [ ] Bluetooth controller detection + mapping
 
 **Milestone:** Render a textured plane with a box you can move using sticks + gyro.
@@ -49,8 +48,9 @@ The core mechanic — articulated arm that feels heavy.
 - [ ] Boom + stick + bucket as serial linkage (forward kinematics)
 - [ ] Joint angle limits (min/max per joint, realistic ranges)
 - [ ] Hydraulic speed simulation (joints move at limited rate, slower under load)
-- [ ] Arm physics at 120Hz (semi-implicit Euler or RK4)
-- [ ] ISO-adapted control mapping (boom on left Y, stick on right X, bucket on right Y, swing on gyro)
+- [ ] Arm physics at 60Hz (semi-implicit Euler with damping)
+- [ ] ISO control mapping: left stick = swing+boom, right stick = stick+bucket, toggle button = track mode
+- [ ] Gyro mirrors right stick Y for bucket curl (CMDeviceMotion, xArbitraryZVertical ref frame)
 - [ ] Counterweight / centre-of-gravity tracking
 - [ ] Tip-over detection and physics
 
@@ -68,8 +68,8 @@ Make digging satisfying.
 - [ ] Spoil pile generation (pre-computed shapes stamped on dump)
 - [ ] Volume tracking (hole ≈ pile × swell factor)
 - [ ] Angle-of-repose post-processing (trench walls collapse if too steep)
-- [ ] Soil deformation on Metal compute shader (30-60Hz)
-- [ ] Terrain collision mesh update (GPU→CPU readback or parallel CPU heightmap)
+- [ ] Soil deformation on CPU (parallel heightmap — no GPU→CPU readback, breaks TBDR)
+- [ ] Terrain collision uses same CPU heightmap as deformation (no sync issues)
 
 **Milestone:** Dig a trench in clay, see walls, pile spoil, feel the depth.
 
@@ -124,14 +124,16 @@ Turn the toy into a game.
 
 | Phase | Weeks | What |
 |-------|-------|------|
-| 1. Renderer + Input | 1-3 | Metal boilerplate, sticks, gyro |
-| 2. Excavator Arm | 3-5 | Articulated arm, joint physics |
-| 3. Soil + Digging | 5-8 | Heightmap deformation, materials |
-| 4. Haptics + Audio | 8-10 | CoreHaptics patterns, spatial audio |
-| 5. Missions | 10-13 | Game loop, progression, scoring |
-| 6. Polish + Ship | 13-16 | Art, onboarding, App Store |
+| 1. Renderer + Input | 1-4 | Metal boilerplate, sticks, gyro, camera |
+| 2. Excavator Arm | 4-7 | Articulated arm, joint physics, controls |
+| 3. Soil + Digging | 7-12 | Heightmap deformation, materials, forces |
+| 4. Haptics + Audio | 12-15 | CoreHaptics patterns, cabin audio, spatial |
+| 5. Missions | 15-19 | Game loop, progression, scoring, Free Dig |
+| 6. Polish + Ship | 19-24 | Art, onboarding, accessibility, App Store |
 
-**Total: ~16 weeks (4 months) to App Store submission.**
+**Total: ~24 weeks (6 months) to App Store submission.**
+
+*Round 2 reviewers unanimously said 16 weeks was fantasy. Codex specialist estimated 24-30 weeks. Metal renderer alone needs 4+ weeks for stability. Soil deformation is the hardest phase.*
 
 ## Codex Notes
 
